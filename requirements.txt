@@ -6,5 +6,9 @@ discord.py==2.4.0
 langgraph==0.2.56
 langchain-core==0.3.28
 langfuse>=3.0.0
+requests==2.31.0
+tenacity==8.5.0
+cloudscraper==1.2.71
+beautifulsoup4==4.12.3
 pytest==8.3.3
 pytest-mock==3.14.0
