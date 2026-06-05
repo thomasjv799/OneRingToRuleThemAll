@@ -1,3 +1,5 @@
+import pytest
+
 from utils import metrics
 
 
@@ -40,3 +42,10 @@ def test_canned_map_has_core_metrics():
     for name in ("cpu_percent", "ram_percent", "disk_percent", "cpu_temp"):
         assert name in metrics.CANNED
         assert metrics.CANNED[name]  # non-empty PromQL
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("30s", 30), ("5m", 300), ("2h", 7200), ("1d", 86400), ("45", 45),
+])
+def test_duration_seconds(text, expected):
+    assert metrics._duration_seconds(text) == expected
