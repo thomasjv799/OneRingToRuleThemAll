@@ -21,7 +21,10 @@ CANNED: dict[str, str] = {
         '(1 - node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} '
         '/ node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}) * 100'
     ),
-    "cpu_temp": "max(node_hwmon_temp_celsius)",
+    # Scope to the Intel coretemp chip (package + cores). A blind
+    # max() over all hwmon sensors picks up bogus applesmc readings
+    # (e.g. 103°C) on the Mac mini instead of the real CPU temp.
+    "cpu_temp": 'max(node_hwmon_temp_celsius{chip=~"platform_coretemp.*"})',
 }
 
 
