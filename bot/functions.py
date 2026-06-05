@@ -304,7 +304,7 @@ def query_loki(user_id: str, logql: str, duration: str = "1h") -> str:
 
 def get_openrouter_balance(user_id: str) -> str:
     if not openrouter_usage.key_configured():
-        return "OpenRouter cost tracking not configured — add OPENROUTER_PROVISIONING_KEY to .env."
+        return "OpenRouter not configured — OPENROUTER_API_KEY is missing."
     try:
         info = openrouter_usage.parse_credits(openrouter_usage.fetch_credits())
     except Exception as exc:
@@ -313,24 +313,14 @@ def get_openrouter_balance(user_id: str) -> str:
             f"(purchased ${info['purchased']:.2f}, used ${info['used']:.2f}).")
 
 
-def get_openrouter_usage(user_id: str, start_date: str = None, end_date: str = None) -> str:
-    import datetime as _dt
-
+def get_openrouter_usage(user_id: str) -> str:
     if not openrouter_usage.key_configured():
-        return "OpenRouter cost tracking not configured — add OPENROUTER_PROVISIONING_KEY to .env."
-    today = _dt.date.today()
-    start_date = start_date or (today - _dt.timedelta(days=30)).isoformat()
-    end_date = end_date or today.isoformat()
-    start, end, clamped = openrouter_usage.clamp_dates(start_date, end_date, today=today)
-    rows = []
+        return "OpenRouter not configured — OPENROUTER_API_KEY is missing."
     try:
-        day = start
-        while day <= end:
-            rows.extend(openrouter_usage.fetch_activity(date=day.isoformat()))
-            day += _dt.timedelta(days=1)
+        usage = openrouter_usage.parse_key_usage(openrouter_usage.fetch_key())
     except Exception as exc:
         return f"Could not fetch OpenRouter usage ({exc})."
-    return openrouter_usage.summarize_activity(rows, start, end, clamped)
+    return openrouter_usage.summarize_usage(usage)
 
 
 # ---------------------------------------------------------------------------
@@ -625,11 +615,8 @@ TOOLS = [
         "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {
         "name": "get_openrouter_usage",
-        "description": "OpenRouter spend over a date range (YYYY-MM-DD). Limited to the last 30 days.",
-        "parameters": {"type": "object", "properties": {
-            "start_date": {"type": "string", "description": "Start date YYYY-MM-DD (default 30 days ago)."},
-            "end_date": {"type": "string", "description": "End date YYYY-MM-DD (default today)."}},
-            "required": []}}},
+        "description": "OpenRouter spend rollups: today, this week, and this month.",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
 ]
 
 

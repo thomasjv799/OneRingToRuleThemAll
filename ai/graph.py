@@ -41,8 +41,8 @@ SYSTEM_PROMPT = (
     "over time, Docker container status and health, and container logs. Prefer the "
     "named helpers (get_system_health, get_metric_range, get_container_status, "
     "search_logs); use query_prometheus/query_loki only for unusual questions.\n"
-    "- Report OpenRouter cost: current balance and spend over a date range "
-    "(get_openrouter_balance, get_openrouter_usage).\n"
+    "- Report OpenRouter cost: current balance and spend rollups for today, "
+    "this week, and this month (get_openrouter_balance, get_openrouter_usage).\n"
     "When updating a vehicle expiry, first show the user the old → new value and ask them to "
     "confirm before calling update_vehicle_expiry. Be concise and helpful."
 )
