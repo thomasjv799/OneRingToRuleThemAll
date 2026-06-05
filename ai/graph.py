@@ -14,7 +14,7 @@ from langfuse import Langfuse, observe
 from langgraph.graph import END, StateGraph
 
 import db.client as db
-from ai.openrouter_provider import OpenRouterProvider
+from ai.provider import get_provider
 from bot.functions import TOOLS, dispatch
 
 # --- Langfuse initialization (must happen before @observe is used) ---
@@ -27,13 +27,18 @@ _langfuse = Langfuse(
 
 log = logging.getLogger(__name__)
 
-_llm = OpenRouterProvider()
+_llm = get_provider()
 
 SYSTEM_PROMPT = (
-    "You are OneRing, a homelab assistant. "
-    "You can query and update vehicle documents (insurance, pollution, fitness, tax, permit), "
-    "and check the user's tracked games and watches. "
-    "Be concise and helpful."
+    "You are OneRing, a homelab assistant. You can:\n"
+    "- Query and update vehicle documents (insurance, PUCC/pollution, fitness, MV tax, permit) "
+    "and snooze their renewal reminders.\n"
+    "- Track game prices: add/remove games, set target prices, look up current and historical-low "
+    "prices, and show recent deal alerts.\n"
+    "- Track watch prices from swisstimehouse.com links: add/remove watches, set targets, "
+    "and check current prices.\n"
+    "When updating a vehicle expiry, first show the user the old → new value and ask them to "
+    "confirm before calling update_vehicle_expiry. Be concise and helpful."
 )
 
 
