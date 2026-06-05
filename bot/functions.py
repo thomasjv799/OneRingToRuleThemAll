@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from typing import Optional
 
 import db.client as db
+from utils import docker_status, metrics, openrouter_usage
 from utils.itad import get_all_prices, get_historical_low, search_game
 from utils.watches import fetch_swisstimehouse
 
@@ -222,6 +223,114 @@ def clear_memory(user_id: str) -> str:
     from ai.provider import get_provider
     summary = db.force_summarize(user_id, get_provider())
     return f"Memory cleared and summarized. Key facts retained: {summary[:300]}"
+
+
+# ---------------------------------------------------------------------------
+# Monitoring functions (Prometheus / Loki / Docker)
+# ---------------------------------------------------------------------------
+
+_HEALTH_METRICS = [("CPU", "cpu_percent", "%"), ("RAM", "ram_percent", "%"),
+                   ("Disk", "disk_percent", "%"), ("Temp", "cpu_temp", "°C")]
+
+
+def get_system_health(user_id: str) -> str:
+    parts = []
+    for label, name, unit in _HEALTH_METRICS:
+        try:
+            val = metrics.canned_value(name)
+            parts.append(f"{label}: {val:.1f}{unit}" if val is not None else f"{label}: n/a")
+        except Exception as exc:
+            logger.error("metric %s failed: %s", name, exc)
+            parts.append(f"{label}: error")
+    return "Server health — " + ", ".join(parts)
+
+
+def get_metric_range(user_id: str, metric: str, duration: str = "1h") -> str:
+    if metric not in metrics.CANNED:
+        return f"Unknown metric '{metric}'. Known: {', '.join(metrics.CANNED)}."
+    try:
+        series = metrics.range_query(metrics.CANNED[metric], duration=duration)
+    except Exception as exc:
+        return f"Prometheus is unreachable ({exc})."
+    points = series[0][1] if series else []
+    return metrics.summarize_range(f"{metric} over {duration}", points)
+
+
+def get_container_status(user_id: str, name: str = None) -> str:
+    try:
+        containers = docker_status.fetch_containers()
+    except Exception as exc:
+        return f"Docker status unavailable (socket not mounted? {exc})."
+    return docker_status.summarize_containers(containers, name=name)
+
+
+def search_logs(user_id: str, container: str, level: str = None, duration: str = "1h") -> str:
+    selector = '{container="%s"}' % container
+    if level:
+        selector += ' |~ "(?i)%s"' % level
+    try:
+        rows = metrics.loki_query(selector, duration=duration, limit=30)
+    except Exception as exc:
+        return f"Loki is unreachable ({exc})."
+    if not rows:
+        return f"No logs for {container} in the last {duration}."
+    lines = [line for _, line in rows][:30]
+    return f"Last {len(lines)} log lines for {container}:\n" + "\n".join(lines)
+
+
+def query_prometheus(user_id: str, promql: str, range: str = None) -> str:
+    try:
+        if range:
+            series = metrics.range_query(promql, duration=range)
+            points = series[0][1] if series else []
+            return metrics.summarize_range(f"query over {range}", points)
+        rows = metrics.instant(promql)
+    except Exception as exc:
+        return f"Prometheus query failed ({exc})."
+    if not rows:
+        return "Query returned no data."
+    return "\n".join(f"{m or 'value'}: {v:.3f}" for m, v in rows[:20])
+
+
+def query_loki(user_id: str, logql: str, duration: str = "1h") -> str:
+    try:
+        rows = metrics.loki_query(logql, duration=duration, limit=30)
+    except Exception as exc:
+        return f"Loki query failed ({exc})."
+    if not rows:
+        return "Query returned no log lines."
+    return "\n".join(line for _, line in rows[:30])
+
+
+def get_openrouter_balance(user_id: str) -> str:
+    if not openrouter_usage.key_configured():
+        return "OpenRouter cost tracking not configured — add OPENROUTER_PROVISIONING_KEY to .env."
+    try:
+        info = openrouter_usage.parse_credits(openrouter_usage.fetch_credits())
+    except Exception as exc:
+        return f"Could not fetch OpenRouter balance ({exc})."
+    return (f"OpenRouter balance: ${info['balance']:.2f} "
+            f"(purchased ${info['purchased']:.2f}, used ${info['used']:.2f}).")
+
+
+def get_openrouter_usage(user_id: str, start_date: str = None, end_date: str = None) -> str:
+    import datetime as _dt
+
+    if not openrouter_usage.key_configured():
+        return "OpenRouter cost tracking not configured — add OPENROUTER_PROVISIONING_KEY to .env."
+    today = _dt.date.today()
+    start_date = start_date or (today - _dt.timedelta(days=30)).isoformat()
+    end_date = end_date or today.isoformat()
+    start, end, clamped = openrouter_usage.clamp_dates(start_date, end_date, today=today)
+    rows = []
+    try:
+        day = start
+        while day <= end:
+            rows.extend(openrouter_usage.fetch_activity(date=day.isoformat()))
+            day += _dt.timedelta(days=1)
+    except Exception as exc:
+        return f"Could not fetch OpenRouter usage ({exc})."
+    return openrouter_usage.summarize_activity(rows, start, end, clamped)
 
 
 # ---------------------------------------------------------------------------
@@ -471,6 +580,56 @@ TOOLS = [
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
+    {"type": "function", "function": {
+        "name": "get_system_health",
+        "description": "Current server health snapshot: CPU %, RAM %, disk %, and CPU temperature.",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "get_metric_range",
+        "description": "A system metric over a time window, summarized as min/max/avg/latest.",
+        "parameters": {"type": "object", "properties": {
+            "metric": {"type": "string", "enum": ["cpu_percent", "ram_percent", "disk_percent", "cpu_temp"]},
+            "duration": {"type": "string", "description": "e.g. 1h, 24h, 7d (default 1h)"}},
+            "required": ["metric"]}}},
+    {"type": "function", "function": {
+        "name": "get_container_status",
+        "description": "Docker container status: total/running/stopped/unhealthy counts and per-container health. Optionally filter by name.",
+        "parameters": {"type": "object", "properties": {
+            "name": {"type": "string", "description": "Optional container name substring."}},
+            "required": []}}},
+    {"type": "function", "function": {
+        "name": "search_logs",
+        "description": "Search a container's recent logs via Loki. Optional level filter (e.g. error).",
+        "parameters": {"type": "object", "properties": {
+            "container": {"type": "string", "description": "Container name."},
+            "level": {"type": "string", "description": "Optional case-insensitive match (e.g. error, warn)."},
+            "duration": {"type": "string", "description": "Lookback, e.g. 1h, 6h (default 1h)."}},
+            "required": ["container"]}}},
+    {"type": "function", "function": {
+        "name": "query_prometheus",
+        "description": "Run a raw PromQL query (escape hatch). Pass range like 6h for a range query.",
+        "parameters": {"type": "object", "properties": {
+            "promql": {"type": "string", "description": "Raw PromQL expression."},
+            "range": {"type": "string", "description": "Optional window for a range query, e.g. 6h."}},
+            "required": ["promql"]}}},
+    {"type": "function", "function": {
+        "name": "query_loki",
+        "description": "Run a raw LogQL query against Loki (escape hatch).",
+        "parameters": {"type": "object", "properties": {
+            "logql": {"type": "string", "description": "Raw LogQL expression."},
+            "duration": {"type": "string", "description": "Lookback window, e.g. 1h (default 1h)."}},
+            "required": ["logql"]}}},
+    {"type": "function", "function": {
+        "name": "get_openrouter_balance",
+        "description": "Current OpenRouter credit balance and lifetime purchased/used amounts.",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "get_openrouter_usage",
+        "description": "OpenRouter spend over a date range (YYYY-MM-DD). Limited to the last 30 days.",
+        "parameters": {"type": "object", "properties": {
+            "start_date": {"type": "string", "description": "Start date YYYY-MM-DD (default 30 days ago)."},
+            "end_date": {"type": "string", "description": "End date YYYY-MM-DD (default today)."}},
+            "required": []}}},
 ]
 
 
@@ -491,6 +650,14 @@ _FUNCTION_MAP = {
     "set_watch_target": set_watch_target,
     "remove_watch": remove_watch,
     "clear_memory": clear_memory,
+    "get_system_health": get_system_health,
+    "get_metric_range": get_metric_range,
+    "get_container_status": get_container_status,
+    "search_logs": search_logs,
+    "query_prometheus": query_prometheus,
+    "query_loki": query_loki,
+    "get_openrouter_balance": get_openrouter_balance,
+    "get_openrouter_usage": get_openrouter_usage,
 }
 
 
