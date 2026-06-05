@@ -9,6 +9,10 @@ services:
       DATABASE_URI: postgresql://homelab:choolackal@postgres:5432/homelab
     networks:
       - master_db_postgres_default
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
 networks:
   master_db_postgres_default:
