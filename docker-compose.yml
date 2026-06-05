@@ -1,0 +1,15 @@
+services:
+  onering:
+    build: .
+    container_name: onering-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Override localhost with the Docker service name on the shared network
+      DATABASE_URI: postgresql://homelab:choolackal@postgres:5432/homelab
+    networks:
+      - master_db_postgres_default
+
+networks:
+  master_db_postgres_default:
+    external: true

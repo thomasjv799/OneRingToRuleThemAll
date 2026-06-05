@@ -38,7 +38,7 @@ pytest
 
 ## Architecture notes
 
-- **LLM:** OpenRouter — model set via `OPENROUTER_MODEL`. Default: `moonshotai/kimi-k2:free`. Swap to `deepseek/deepseek-chat-v3-0324` or `google/gemini-2.5-flash` for paid tiers.
+- **LLM:** OpenRouter. Primary model `OPENROUTER_MODEL` (default `moonshotai/kimi-k2.6:free`), with automatic fallback to `OPENROUTER_FALLBACK_MODEL` (default `deepseek/deepseek-chat-v3-0324`, paid/cheap) when the free tier returns 429 after retries. Each request retries the primary 3× with exponential backoff before spilling to the fallback.
 - **DB:** Local homelab Postgres (`homelab` DB). Three schemas accessed:
   - `master` — this bot's chat memory (chat_messages, chat_summary)
   - `public` — shared Smart Reminder vehicles table (read + update expiry)
@@ -50,8 +50,9 @@ pytest
 ## Environment variables
 
 ```
-OPENROUTER_API_KEY      sk-or-v1-...
-OPENROUTER_MODEL        moonshotai/kimi-k2:free
+OPENROUTER_API_KEY         sk-or-v1-...
+OPENROUTER_MODEL           moonshotai/kimi-k2.6:free
+OPENROUTER_FALLBACK_MODEL  deepseek/deepseek-chat-v3-0324
 DATABASE_URI            postgresql://homelab:password@localhost:5432/homelab
 TELEGRAM_BOT_TOKEN      from @BotFather
 TELEGRAM_CHAT_ID        your chat ID
