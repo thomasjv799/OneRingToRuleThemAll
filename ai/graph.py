@@ -112,6 +112,9 @@ graph = (
 
 @observe()
 def run_graph(user_id: str, text: str) -> str:
+    # Resolve platform-specific id (e.g. Telegram) to the canonical owner id so
+    # tool lookups and chat memory are unified across platforms.
+    user_id = db.resolve_user_id(user_id)
     try:
         result = graph.invoke({"user_id": user_id, "user_text": text, "messages": []})
         return result["messages"][-1].get("content") or ""

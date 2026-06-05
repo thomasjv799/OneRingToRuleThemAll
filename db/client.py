@@ -60,6 +60,19 @@ def update_vehicle_expiry(vehicle_id: int, field: str, value: str) -> bool:
         return cur.rowcount > 0
 
 
+# --- identity (master schema) ---
+
+def resolve_user_id(raw_id: str) -> str:
+    """Map a platform-specific user id to its canonical id, if an alias exists."""
+    with _cursor() as cur:
+        cur.execute(
+            "SELECT canonical_id FROM master.user_aliases WHERE alias_id = %s",
+            (raw_id,),
+        )
+        row = cur.fetchone()
+        return row["canonical_id"] if row else raw_id
+
+
 # --- chat memory (master schema) ---
 
 def get_chat_history(user_id: str, limit: int = 20) -> list[dict]:
