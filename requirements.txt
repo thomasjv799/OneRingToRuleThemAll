@@ -5,5 +5,6 @@ python-telegram-bot==21.6
 discord.py==2.4.0
 langgraph==0.2.56
 langchain-core==0.3.28
+langfuse>=3.0.0
 pytest==8.3.3
 pytest-mock==3.14.0
