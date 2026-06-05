@@ -13,7 +13,7 @@ async def _handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     msg = update.effective_message
     user_id = str(update.effective_user.id)
     reply = run_graph(user_id, msg.text)
-    await msg.reply_text(reply)
+    await msg.reply_text(reply or "I couldn't generate a response — please try again.")
 
 
 def run() -> None:

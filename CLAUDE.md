@@ -38,7 +38,7 @@ pytest
 
 ## Architecture notes
 
-- **LLM:** OpenRouter. Primary model `OPENROUTER_MODEL` (default `moonshotai/kimi-k2.6:free`), with automatic fallback to `OPENROUTER_FALLBACK_MODEL` (default `deepseek/deepseek-chat-v3-0324`, paid/cheap) when the free tier returns 429 after retries. Each request retries the primary 3× with exponential backoff before spilling to the fallback.
+- **LLM:** OpenRouter. Model `OPENROUTER_MODEL` (default `deepseek/deepseek-chat-v3-0324` — paid, cheap, reliable tool-calling). Each request retries 3× with exponential backoff. Optional `OPENROUTER_FALLBACK_MODEL` spills over if set (used when running a free primary model that hits 429). Free tier (`moonshotai/kimi-k2.6:free`) is left commented in `.env` — it rate-limits too aggressively for interactive use.
 - **DB:** Local homelab Postgres (`homelab` DB). Three schemas accessed:
   - `master` — this bot's chat memory (chat_messages, chat_summary)
   - `public` — shared Smart Reminder vehicles table (read + update expiry)
