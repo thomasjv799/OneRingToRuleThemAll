@@ -28,7 +28,7 @@ utils/
   watches.py               swisstimehouse.com scraper (cloudscraper + schema.org JSON-LD)
   notify.py                notify(text, platform, chat_id, parse_mode) — Telegram / Discord send
 tests/
-main.py                    Entrypoint — Discord in daemon thread, Telegram on main thread
+main.py                    Entrypoint — Discord on main thread (primary); Telegram in daemon thread, gated by ENABLE_TELEGRAM (off; blocked in India)
 ```
 
 ## Common commands
@@ -62,11 +62,12 @@ OPENROUTER_API_KEY       sk-or-v1-...
 OPENROUTER_MODEL         deepseek/deepseek-chat-v3-0324
 DATABASE_URI             postgresql://homelab:password@localhost:5432/homelab
 ITAD_API_KEY             from isthereanydeal.com/dev/app
-TELEGRAM_BOT_TOKEN       from @BotFather
-TELEGRAM_CHAT_ID         your chat ID (cron alert target)
-DISCORD_BOT_TOKEN        optional
-DISCORD_CHANNEL_ID       optional
-CRON_NOTIFY_PLATFORM     telegram | discord
+DISCORD_BOT_TOKEN        required (primary transport)
+DISCORD_CHANNEL_ID       required
+ENABLE_TELEGRAM          1/true/yes to re-enable Telegram (default off; blocked in India)
+TELEGRAM_BOT_TOKEN       from @BotFather (only used when ENABLE_TELEGRAM set)
+TELEGRAM_CHAT_ID         your chat ID
+CRON_NOTIFY_PLATFORM     discord | telegram
 CRON_NOTIFY_CHAT_ID      override for cron alert target (defaults to TELEGRAM_CHAT_ID)
 LANGFUSE_*               LLM observability
 ```

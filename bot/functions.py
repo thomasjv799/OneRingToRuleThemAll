@@ -64,6 +64,12 @@ def update_vehicle_expiry(user_id: str, registration_number: str, field: str, ne
     return f"Vehicle {registration_number} not found."
 
 
+def remove_vehicle(user_id: str, registration_number: str) -> str:
+    if db.remove_vehicle(registration_number):
+        return f"Removed vehicle {registration_number} from the database."
+    return f"Vehicle {registration_number} not found."
+
+
 def snooze_reminder(user_id: str, registration_number: str, field: str,
                     mode: str, days: int = 30, reason: str = "") -> str:
     label = _VEHICLE_FIELDS.get(field, field)
@@ -384,6 +390,24 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "remove_vehicle",
+            "description": (
+                "Permanently delete a vehicle and its reminder history from the database. "
+                "STRICT: call query_vehicles first, confirm the exact vehicle with the user, "
+                "then call this with its registration_number."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "registration_number": {"type": "string", "description": "e.g. KL04AS1371"},
+                },
+                "required": ["registration_number"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "snooze_reminder",
             "description": (
                 "Snooze or permanently ignore cron reminders for a vehicle document. "
@@ -623,6 +647,7 @@ TOOLS = [
 _FUNCTION_MAP = {
     "query_vehicles": query_vehicles,
     "update_vehicle_expiry": update_vehicle_expiry,
+    "remove_vehicle": remove_vehicle,
     "snooze_reminder": snooze_reminder,
     "add_game": add_game,
     "set_target_price": set_target_price,
