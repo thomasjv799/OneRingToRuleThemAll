@@ -142,6 +142,22 @@ def update_vehicle_field(registration_number: str, field: str, new_date: str) ->
         return cur.rowcount > 0
 
 
+def remove_vehicle(registration_number: str) -> bool:
+    with _cursor() as cur:
+        cur.execute(
+            "SELECT id FROM public.vehicles WHERE registration_number = %(reg)s",
+            {"reg": registration_number},
+        )
+        row = cur.fetchone()
+        if row is None:
+            return False
+        vid = row["id"]
+        cur.execute("DELETE FROM public.reminder_log WHERE vehicle_id = %(id)s", {"id": vid})
+        cur.execute("DELETE FROM public.reminder_snooze WHERE vehicle_id = %(id)s", {"id": vid})
+        cur.execute("DELETE FROM public.vehicles WHERE id = %(id)s", {"id": vid})
+        return cur.rowcount > 0
+
+
 def get_all_vehicles_with_expiry() -> list[dict]:
     with _cursor() as cur:
         cur.execute(f"SELECT {_VEHICLE_COLS} FROM public.vehicles ORDER BY id")
